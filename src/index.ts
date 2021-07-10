@@ -1,17 +1,45 @@
 import * as inquirer from "inquirer";
 import * as fs from "fs";
+import { ncp } from "ncp";
 
-const CHOICES = fs.readdirSync(`${__dirname}/../templates`);
+const copy = (source: string, destination: string) =>
+  new Promise((resolve, reject) =>
+    ncp(source, destination, (error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(null);
+      }
+    })
+  );
+
+const templateFolder = `${__dirname}/../templates`;
+
+const frontendChoices = fs.readdirSync(`${templateFolder}/frontend`);
+const backendChoices = fs.readdirSync(`${templateFolder}/backend`);
+const extraChoices = fs.readdirSync(`${templateFolder}/extras`);
 
 const QUESTIONS = [
   {
-    name: "project-choice",
+    name: "frontendChoice",
     type: "list",
-    message: "What project template would you like to generate?",
-    choices: CHOICES,
+    message: "What frontend would you like to generate?",
+    choices: frontendChoices,
   },
   {
-    name: "project-name",
+    name: "backendChoice",
+    type: "list",
+    message: "What backend would you like to generate?",
+    choices: backendChoices,
+  },
+  {
+    name: "extraChoice",
+    type: "checkbox",
+    message: "Any extra packages?",
+    choices: extraChoices,
+  },
+  {
+    name: "projectName",
     type: "input",
     message: "Project name:",
     validate: (input: string) => {
@@ -22,40 +50,34 @@ const QUESTIONS = [
   },
 ];
 
+const extraNameMapping = {
+  docz: "ui",
+};
+
 const CURR_DIR = process.cwd();
 
-inquirer.prompt(QUESTIONS).then((answers) => {
-  const projectChoice = answers["project-choice"];
-  const projectName = answers["project-name"];
-  const templatePath = `${__dirname}/../templates/${projectChoice}`;
+inquirer
+  .prompt(QUESTIONS)
+  .then(async ({ frontendChoice, extraChoice, backendChoice, projectName }) => {
+    const destination = `${CURR_DIR}/${projectName}`;
 
-  fs.mkdirSync(`${CURR_DIR}/${projectName}`);
+    fs.mkdirSync(destination);
 
-  createDirectoryContents(templatePath, projectName);
-});
+    const serverDestination = `${destination}/server`;
+    const webDestination = `${destination}/web`;
 
-function createDirectoryContents(templatePath: string, newProjectPath: string) {
-  const filesToCreate = fs.readdirSync(templatePath);
+    fs.mkdirSync(serverDestination);
+    fs.mkdirSync(webDestination);
 
-  filesToCreate.forEach((file) => {
-    const origFilePath = `${templatePath}/${file}`;
+    await copy(`${templateFolder}/backend/${backendChoice}`, serverDestination);
+    await copy(`${templateFolder}/frontend/${frontendChoice}`, webDestination);
 
-    // get stats about the current file
-    const stats = fs.statSync(origFilePath);
+    await Promise.all(
+      extraChoice.map((extra: keyof typeof extraNameMapping) => {
+        const dest = `${destination}/${extraNameMapping[extra]}`;
+        fs.mkdirSync(dest);
 
-    if (stats.isFile()) {
-      const contents = fs.readFileSync(origFilePath, "utf8");
-
-      const writePath = `${CURR_DIR}/${newProjectPath}/${file}`;
-      fs.writeFileSync(writePath, contents, "utf8");
-    } else if (stats.isDirectory()) {
-      fs.mkdirSync(`${CURR_DIR}/${newProjectPath}/${file}`);
-
-      // recursive call
-      createDirectoryContents(
-        `${templatePath}/${file}`,
-        `${newProjectPath}/${file}`
-      );
-    }
+        copy(`${templateFolder}/extras/${extra}`, dest);
+      })
+    );
   });
-}
