@@ -14,7 +14,6 @@ const copy = (source: string, destination: string) =>
   );
 
 const templateFolder = `${__dirname}/../templates`;
-
 const frontendChoices = fs.readdirSync(`${templateFolder}/frontend`);
 const backendChoices = fs.readdirSync(`${templateFolder}/backend`);
 const extraChoices = fs.readdirSync(`${templateFolder}/extras`);
@@ -59,15 +58,16 @@ const CURR_DIR = process.cwd();
 inquirer
   .prompt(QUESTIONS)
   .then(async ({ frontendChoice, extraChoice, backendChoice, projectName }) => {
-    const destination = `${CURR_DIR}/${projectName}`;
+    const rootDest = `${CURR_DIR}/${projectName}`;
+    fs.mkdirSync(rootDest);
 
+    await copy(`${templateFolder}/root`, rootDest);
+
+    const destination = `${rootDest}/packages`;
     fs.mkdirSync(destination);
 
     const serverDestination = `${destination}/server`;
     const webDestination = `${destination}/web`;
-
-    fs.mkdirSync(serverDestination);
-    fs.mkdirSync(webDestination);
 
     await copy(`${templateFolder}/backend/${backendChoice}`, serverDestination);
     await copy(`${templateFolder}/frontend/${frontendChoice}`, webDestination);
@@ -75,7 +75,6 @@ inquirer
     await Promise.all(
       extraChoice.map((extra: keyof typeof extraNameMapping) => {
         const dest = `${destination}/${extraNameMapping[extra]}`;
-        fs.mkdirSync(dest);
 
         copy(`${templateFolder}/extras/${extra}`, dest);
       })
